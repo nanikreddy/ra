@@ -7,6 +7,9 @@
 # Runtime data (recorded streams, generated broadcast key)
 /data/
 
+# Generated at server start by tools/make-icons.mjs (deterministic)
+/public/icons/*.png
+
 # TLS material
 *.pem
 *.key

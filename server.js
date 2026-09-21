@@ -538,10 +538,23 @@ function localAddresses() {
   return out;
 }
 
+/** The PNG icons are deterministic build artifacts (kept out of git);
+ * generate them on first start so a fresh checkout is complete. */
+async function ensureIcons() {
+  const marker = path.join(PUBLIC_DIR, 'icons', 'icon-512.png');
+  try { await fsp.access(marker); return; } catch { /* missing: generate */ }
+  try {
+    await import('./tools/make-icons.mjs'); // side effect: writes public/icons/*.png
+  } catch (e) {
+    log('icon generation skipped:', e.message);
+  }
+}
+
 export async function startServer(overrides = {}) {
   Object.assign(cfg, overrides);
   await fsp.mkdir(cfg.dataDir, { recursive: true });
   await ensureBroadcastKey();
+  await ensureIcons();
   await scanDataDir();
 
   let server;

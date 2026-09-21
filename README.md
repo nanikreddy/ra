@@ -44,7 +44,8 @@ downscaled, re-encoded, or lost to a bad connection.
   viewer count, device storage, wake-lock so the screen never sleeps, and a
   banner that always tells the operator what the network is doing.
 - **Zero dependencies**: the server is one file of plain Node.js (≥ 18).
-  `node server.js` is the whole deployment.
+  `node server.js` is the whole deployment. (App icons are generated
+  automatically on first start; `npm run icons` regenerates them.)
 
 ## Quick start
 
