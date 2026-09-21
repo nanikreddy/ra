@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Broadcast · WeddingCast</title>
+<meta name="theme-color" content="#141210">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="page-broadcast">
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-rings" aria-hidden="true"></span><span id="siteTitle">WeddingCast</span></a>
+  <span id="topStatus" class="chip chip-idle" hidden></span>
+</header>
+
+<main class="wrap">
+
+  <!-- Insecure context warning -->
+  <section id="httpsWarn" class="card warn" hidden>
+    <h2>Camera needs HTTPS</h2>
+    <p>This page was opened over plain <code>http</code>, so the browser will not
+    unlock the camera (except on <code>localhost</code>). Open the site over
+    <strong>https</strong> — see “HTTPS for phones” in the README.</p>
+  </section>
+
+  <!-- Recovery: footage recorded earlier but not fully uploaded -->
+  <section id="recover" class="card" hidden>
+    <h2>Unfinished uploads</h2>
+    <p class="muted">Footage recorded on this device that has not reached the server yet.
+    It is safe — stored locally at full quality.</p>
+    <div id="recoverList"></div>
+  </section>
+
+  <!-- Step 1: broadcast key -->
+  <section id="gate" class="card" hidden>
+    <h2>Broadcaster access</h2>
+    <p class="muted">Enter the broadcast key (printed in the server console when it starts).</p>
+    <div class="row">
+      <input id="keyInput" type="password" autocomplete="off" placeholder="broadcast key" enterkeyhint="done">
+      <button id="keySave" class="btn btn-gold">Continue</button>
+    </div>
+    <p id="keyMsg" class="err" hidden></p>
+  </section>
+
+  <!-- Step 2: camera setup -->
+  <section id="setup" class="card" hidden>
+    <h2>Set up the camera</h2>
+
+    <div class="preview-box">
+      <video id="preview" autoplay muted playsinline></video>
+      <span id="previewBadge" class="badge-res" hidden></span>
+    </div>
+    <button id="btnPreview" class="btn btn-ghost btn-wide">Open camera preview</button>
+    <p id="setupMsg" class="err" hidden></p>
+
+    <label class="field">
+      <span>Stream title</span>
+      <input id="titleInput" type="text" maxlength="120" placeholder="The Ceremony" value="The Ceremony">
+    </label>
+
+    <div class="grid2">
+      <label class="field">
+        <span>Quality</span>
+        <select id="qualitySel">
+          <option value="2160">4K · 2160p (≈ 34 Mbps)</option>
+          <option value="1440">QHD · 1440p (≈ 18 Mbps)</option>
+          <option value="1080" selected>HD · 1080p (≈ 12 Mbps)</option>
+          <option value="720">HD · 720p (≈ 6 Mbps)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Format</span>
+        <select id="formatSel">
+          <option value="auto" selected>Auto (recommended)</option>
+          <option value="mp4">MP4 / H.264 — plays on every phone</option>
+          <option value="vp9">WebM / VP9 — smoothest playback</option>
+          <option value="vp8">WebM / VP8 — maximum compatibility encoder</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Camera</span>
+        <select id="camSel"><option value="">Default (rear)</option></select>
+      </label>
+      <label class="field">
+        <span>Microphone</span>
+        <select id="micSel"><option value="">Default</option></select>
+      </label>
+    </div>
+
+    <details class="advanced">
+      <summary>Advanced</summary>
+      <div class="grid2">
+        <label class="field">
+          <span>Segment length</span>
+          <select id="segSel">
+            <option value="2000">2 seconds</option>
+            <option value="4000" selected>4 seconds</option>
+            <option value="6000">6 seconds</option>
+            <option value="10000">10 seconds</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Custom video bitrate (Mbps, 0 = preset)</span>
+          <input id="bitrateInput" type="number" min="0" max="80" step="0.5" value="0">
+        </label>
+      </div>
+      <label class="check"><input id="audioProcSel" type="checkbox">
+        <span>Voice processing (echo/noise reduction) — leave <em>off</em> for music &amp; vows</span></label>
+      <label class="check"><input id="keepLocalSel" type="checkbox" checked>
+        <span>Keep a local copy of every segment after upload (extra safety)</span></label>
+      <p id="mimeNote" class="muted small"></p>
+    </details>
+
+    <button id="btnGoLive" class="btn btn-live btn-wide">● Go live</button>
+  </section>
+
+  <!-- Step 3: live dashboard -->
+  <section id="live" class="card" hidden>
+    <div class="preview-box">
+      <video id="liveVideo" autoplay muted playsinline></video>
+      <span id="liveBadge" class="badge-live">LIVE</span>
+      <span id="liveRes" class="badge-res"></span>
+    </div>
+
+    <div id="netBanner" class="net-banner net-ok">Connected — stream is up to date</div>
+
+    <div class="stats">
+      <div class="stat"><span class="stat-v" id="stElapsed">0:00</span><span class="stat-k">recorded</span></div>
+      <div class="stat"><span class="stat-v" id="stBitrate">—</span><span class="stat-k">encode rate</span></div>
+      <div class="stat"><span class="stat-v" id="stBacklog">0s</span><span class="stat-k">waiting to upload</span></div>
+      <div class="stat"><span class="stat-v" id="stUpRate">—</span><span class="stat-k">upload speed</span></div>
+      <div class="stat"><span class="stat-v" id="stViewers">0</span><span class="stat-k">watching</span></div>
+      <div class="stat"><span class="stat-v" id="stStorage">—</span><span class="stat-k">device storage</span></div>
+    </div>
+
+    <div class="share">
+      <span>Share with guests:</span>
+      <div class="row">
+        <input id="shareLink" type="text" readonly>
+        <button id="btnCopy" class="btn btn-ghost">Copy</button>
+      </div>
+    </div>
+
+    <p class="muted small">Keep this page open and the screen on. If the internet drops,
+    <strong>recording continues at full quality</strong> — it uploads automatically when
+    the connection returns.</p>
+
+    <button id="btnStop" class="btn btn-stop btn-wide">Stop broadcasting</button>
+  </section>
+
+  <!-- Step 4: draining / done -->
+  <section id="finish" class="card" hidden>
+    <h2 id="finishTitle">Finishing upload…</h2>
+    <p id="finishMsg" class="muted">Sending the last segments to the server — keep this page open.</p>
+    <div class="progress"><div id="finishBar" class="progress-bar"></div></div>
+    <div id="finishDone" hidden>
+      <p>🎉 Everything is uploaded. The stream is available to rewatch at the same link.</p>
+      <div class="row">
+        <input id="finishLink" type="text" readonly>
+        <button id="btnCopy2" class="btn btn-ghost">Copy</button>
+      </div>
+      <button id="btnAgain" class="btn btn-gold btn-wide">Start another stream</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="/js/common.js"></script>
+<script src="/js/db.js"></script>
+<script src="/js/recorder.js"></script>
+<script src="/js/uploader.js"></script>
+<script src="/js/broadcast.js"></script>
+</body>
+</html>

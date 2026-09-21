@@ -3,3 +3,14 @@
 # Example .gitignore files: https://github.com/github/gitignore
 /bower_components/
 /node_modules/
+
+# Runtime data (recorded streams, generated broadcast key)
+/data/
+
+# TLS material
+*.pem
+*.key
+*.crt
+
+# Test scratch
+/test/.tmp/

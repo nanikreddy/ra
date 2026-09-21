@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WeddingCast</title>
+<meta name="description" content="Live stream of our wedding in full HD and 4K.">
+<meta name="theme-color" content="#141210">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="page-home">
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-rings" aria-hidden="true"></span><span id="siteTitle">WeddingCast</span></a>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="hero-rings" aria-hidden="true"></div>
+    <h1 id="heroTitle">Our Wedding</h1>
+    <p class="hero-sub">Live, in full HD &amp; 4K — from wherever you are.</p>
+  </section>
+
+  <section id="liveNow" hidden>
+    <h2 class="section-h">Live now</h2>
+    <div id="liveList" class="cards"></div>
+  </section>
+
+  <section id="upcoming" hidden>
+    <h2 class="section-h">Waiting to start</h2>
+    <div id="upcomingList" class="cards"></div>
+  </section>
+
+  <section id="past" hidden>
+    <h2 class="section-h">Watch again</h2>
+    <div id="pastList" class="cards"></div>
+  </section>
+
+  <section id="empty" class="card center" hidden>
+    <p class="muted">Nothing is streaming yet. This page refreshes by itself —
+    keep it open, the stream will appear here.</p>
+  </section>
+
+  <section id="offlineNote" class="card warn center" hidden>
+    <p>You seem to be offline. Reconnecting…</p>
+  </section>
+</main>
+
+<footer class="footer">
+  <span class="muted">Install this page as an app: browser menu → “Add to Home Screen”.</span>
+  <a class="muted footer-link" href="/broadcast">broadcast</a>
+</footer>
+
+<script src="/js/common.js"></script>
+<script src="/js/home.js"></script>
+</body>
+</html>
