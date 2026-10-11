@@ -146,7 +146,7 @@ income is a currency bet while its costs are in local-currency electricity.)
 |---|---|
 | "Kubernetes eats 2–4 GB RAM sitting idle" | **Overstated for the relevant comparison.** Full upstream K8s, yes (~1.5–2 GB). But **k3s agent: 268–275 MB** (official profiling, Pi4B / Xeon); k3s server+agent ~1.4 GB. |
 | "Nomad uses ~30–50 MB on a provider node" | **Broadly correct** — ~30 MB for the agent; one edge comparison measured 58 MB/device vs ~430 MB for minimal k3s. So the delta is real, just ~270 MB rather than ~4 GB. |
-| "Use Nomad" | **Licensing problem.** Nomad CE is **BUSL 1.1**, not open source, since Aug 2023; HashiCorp is **IBM-owned since 27 Feb 2025**. BUSL bars using it to provide a "competitive offering … that significantly overlaps the capabilities of a HashiCorp commercial product", and explicitly covers **embedding or hosting**. A paid multi-tenant scheduling service is close enough to that line to need a lawyer, not a blog post. Each release converts to the old licence 4 years after shipping. **There is no OpenTofu-style fork to fall back to.** |
+| "Use Nomad" | **Licensing problem.** Nomad CE is **BUSL 1.1**, not open source, since Aug 2023; HashiCorp is **IBM-owned since 27 Feb 2025**. BUSL bars using it to provide a "competitive offering … that significantly overlaps the capabilities of a HashiCorp commercial product", and explicitly covers **embedding or hosting**. A paid multi-tenant scheduling service is close enough to that line to need a lawyer, not a blog post. Each release converts to the old licence 4 years after shipping. **There is no OpenTofu-style fork to fall back to.** See §9: Talos Linux is MPL-2.0 and is the stronger option. |
 | "Tailscale/Headscale mesh" | **Tailscale's ToS prohibits "selling, reselling, renting or leasing use of the Services"** — commercial resale requires their Channel Partner Agreement. And **Headscale is explicitly a single-tailnet design** with no dynamic ACLs, no Funnel; multi-tenant means one instance per tenant. A single flat tailnet across all providers and tenants is also an architectural mistake: it gives every participant L3 reachability to every other participant. |
 | "gVisor stops tenant root from touching the host kernel" | **Directionally true, and the right instinct** — `runc` is not a security boundary (CVE-2024-21626 "Leaky Vessels": fd leak → host filesystem escape; explicitly worse in multi-tenant clusters sharing nodes). But the commonly-quoted gVisor penalties are stale: **ptrace was replaced as default by systrap in mid-2023** and is unsupported. Real figures: syscalls **~2.2× slower** (800 ns vs 70 ns), network throughput **−20–40%**, I/O-heavy workloads 10–30% slower — yet at Ant Group's scale **70% of applications saw <1% overhead, 95% under 3%**. On bare metal the **KVM platform** is faster than systrap. |
 | "Traefik/Caddy at the centre, Cloudflare for ingress" | The widely-repeated **Cloudflare ToS §2.8 non-HTML restriction no longer exists** — it was removed and replaced with CDN-specific service terms requiring large media to be hosted on Cloudflare services. So that specific objection is outdated, but reselling/proxying arbitrary tenant traffic still needs a terms review. |
@@ -243,7 +243,8 @@ community). Same stack — agent + mesh + scheduler + ingress — but the trust 
 mini PCs. This deletes the entire economics problem, the ISP-AUP problem, the abuse-liability
 problem and the KYC problem at once, and leaves a genuinely wanted product: *k3s/Nomad was too
 heavy, I have four boxes in two houses and want one place to deploy things*. No one has nailed
-this UX.
+this UX. **Caveat (2026-10-11):** Sidero's Omni now has a free homelab tier and is moving
+toward git-push app deployment, so this gap is partly occupied — see §9.
 
 **B. Sell the thing that is actually scarce.** Homelabs' unique assets are residential IPs, real
 last-mile conditions and physical geography — not cores. Legitimate, non-abusive products on that
@@ -286,6 +287,80 @@ The expensive question is demand, and it costs nothing to test:
    CGNATs it. Three data points decide whether any of this clears electricity.
 4. Resolve the **Nomad BUSL** question before building on it — or sidestep it with k3s or
    Bacalhau, both Apache 2.0.
+
+---
+
+## 9. Addendum: Talos Linux (added 2026-10-11)
+
+Prompted by a setup running **three Talos nodes, all three as control planes**. That is the standard
+homelab HA topology: etcd wants an odd number of members, and 3 members tolerate exactly 1 failure.
+Talos taints control planes by default, so scheduling workloads on them needs
+`allowSchedulingOnControlPlanes: true`.
+
+This is more relevant to the design than it first looks, because Talos already ships three things
+the original proposal was going to hand-roll.
+
+### What it replaces
+
+1. **SideroLink is the proposed control-plane architecture, already built.** Each Talos machine
+   opens an **outbound** WireGuard connection to a central SideroLink API server over an IPv6
+   overlay, specifically so machines can be managed "even when direct access to their IP addresses
+   is not feasible" — no public IP, no port forwarding. There is a gRPC tunnel fallback where UDP is
+   blocked, at "significant overhead". That is the "mesh tunnel to home routers" box in the original
+   diagram, purpose-built, and it carries OS management rather than just packets.
+2. **KubeSpan is the node-to-node mesh.** WireGuard between nodes with Talos handling peer discovery
+   and key exchange behind a single config flag; the discovery service cannot decrypt endpoint
+   information. Caveats from the field: UDP 51820 reachability, MTU mismatches, and — per a Talos
+   maintainer in late 2024 — **no KubeSpan client exists outside Talos**, so non-Talos participants
+   cannot join the mesh. That thread is ~2 years old; re-verify.
+3. **Sandboxing becomes configuration.** gVisor is an **official core-tier system extension**
+   (`siderolabs/gvisor`, `runsc` containerd handler, systrap platform, `runsc-kvm` also present);
+   **Kata** is extra-tier (`siderolabs/kata-containers`); there is even a Kata variant for AMD
+   SEV-SNP confidential VMs with GPU passthrough. §4's hardest requirement — kernel-level isolation
+   across heterogeneous volunteer hardware — reduces to an Image Factory schematic plus a
+   RuntimeClass.
+
+Plus the posture itself: no SSH, no shell, no package manager, read-only SquashFS root, mTLS-only
+API. For machines you neither own nor trust, that is the correct design — and a tenant who breaks
+out of a container lands somewhere with no shell and no package manager to use. It also stops
+providers turning their nodes into snowflakes, which is how you survive supporting a fleet.
+
+### Licensing: better than Nomad, same trap one layer up
+
+- **Talos Linux is MPL-2.0** — genuinely open source, commercial use fine. Strictly better than
+  Nomad's BUSL for this purpose.
+- **Omni** (the management plane that provides SideroLink) **is BUSL**: production use requires a
+  commercial licence, non-production and homelab use is free, and each release converts to MPL four
+  years after shipping. Same shape as the Nomad problem in §4 — a paid marketplace on Omni needs a
+  licence, or needs its own control plane.
+- **Sidero Labs has been acquired by Yardi**, and Talos Enterprise Linux now exists; Talos is stated
+  to remain MPL-2.0. Note the pattern — this is the second vendor in this stack to change hands
+  (cf. IBM/HashiCorp, Feb 2025). Licence terms are a dependency with an owner, not a constant.
+
+### What it changes in the conclusions
+
+- **It replaces the scheduler recommendation.** "Avoid Kubernetes" was really "avoid *operating*
+  Kubernetes". Talos removes most of that cost while staying MPL-2.0, which puts it ahead of both
+  Nomad (licence) and k3s-on-a-general-purpose-distro (drift, SSH, patching) for a fleet you do not
+  control.
+- **It changes the topology.** A control plane needs **2 GiB minimum, 4 GiB recommended**, with
+  ~800 MB–1 GB consumed before any workload, and a 1 GiB node reportedly hangs if promoted to
+  control plane; a **worker needs 1 GiB**. So do not put control planes on provider hardware — run
+  the control plane in the cloud and join home boxes as **workers** over SideroLink/KubeSpan. Sidero
+  has a write-up of exactly this shape ("scaling a bare metal cluster into the cloud"). Weigh the
+  cost against §2: 1 GiB of a 16 GB box is ~6% of sellable RAM, which is tolerable; 4 GiB is not.
+- **It introduces a trust-model warning.** Talos makes one big cluster spanning many homes
+  tempting, and that is the wrong boundary: a Kubernetes cluster is a single trust domain, kubelet
+  credentials would live on hardware in strangers' houses, and cluster-level multi-tenancy is not a
+  security boundary. Keep **one cluster per tenant, or rent whole nodes** (§7D) — and Talos's
+  immutability makes wipe-and-reprovision between tenants cheap, which suits whole-node rental
+  well. (I could not confirm the reset/wipe mechanics from available sources; verify the reset API
+  before relying on it.)
+- **It dents option §7A.** Omni already has a free homelab tier and, per a Sept 2026 write-up, is
+  moving toward git-push app deployment. The gap I pointed at is partly occupied by the vendor.
+- **It changes none of the top three findings.** Talos makes this materially cheaper and safer to
+  *build*. It does not move 26% utilisation, €0.20–2/month of margin per node, or ISP AUP and abuse
+  liability.
 
 ---
 
@@ -346,3 +421,20 @@ Stack: [k3s resource profiling](https://docs.k3s.io/reference/resource-profiling
 [Cloudflare ToS §2.8 removal](https://www.engineering.fyi/article/goodbye-section-2-8-and-hello-to-cloudflare-s-new-terms-of-service) ·
 [CGNAT](https://en.wikipedia.org/wiki/Carrier-grade_NAT) ·
 [Blacksmith bare-metal CI](https://info.blacksmith.sh/task/blog/ci-runner-services-bare-metal-performance-github-actions)
+
+Talos (§9): [Talos system requirements](https://docs.siderolabs.com/talos/v1.14/getting-started/system-requirements) ·
+[Talos reference architecture (PDF)](https://www.siderolabs.com/wp-content/uploads/2025/08/Kubernetes-Cluster-Reference-Architecture-with-Talos-Linux-for-2025-05.pdf) ·
+[Control-plane RAM issue #6467](https://github.com/siderolabs/talos/issues/6467) ·
+[SideroLink docs](https://docs.siderolabs.com/talos/v1.13/networking/siderolink) ·
+[KubeSpan announcement](https://www.siderolabs.com/blog/kubespan-and-multi-cloud-kubernetes) ·
+[Scaling bare metal into the cloud](https://www.siderolabs.com/blog/scaling-a-bare-metal-cluster-into-the-cloud) ·
+[KubeSpan outside Talos (discussion #10032)](https://github.com/siderolabs/talos/discussions/10032) ·
+[Talos container runtime extensions](https://deepwiki.com/siderolabs/extensions/3.2-container-runtimes) ·
+[gVisor RuntimeClass on Talos (PR)](https://github.com/onedr0p/home-ops/pull/11746) ·
+[Talos Linux (MPL-2.0)](https://github.com/siderolabs/talos) ·
+[Omni source + BUSL](https://www.siderolabs.com/blog/omni-source-code-now-available) ·
+[Omni repo licensing](https://github.com/siderolabs/omni) ·
+[Sidero Labs joins Yardi](https://www.siderolabs.com/blog/sidero-labs-joins-yardi) ·
+[Talos Enterprise Linux](https://www.siderolabs.com/blog/introducing-talos-enterprise-linux) ·
+[Omni app deployment direction](https://bex.co/blog/2026/09/11/sidero-omni-app-deployment-git-push-paas) ·
+[Talos security model](https://stribog.com/blog/talos-linux-immutable-kubernetes-os-security-case)
